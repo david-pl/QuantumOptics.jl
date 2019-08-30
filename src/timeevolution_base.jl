@@ -18,7 +18,10 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
             state::T, dstate::T, fout::Function;
             alg::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm = OrdinaryDiffEq.DP5(),
             steady_state = false, tol = 1e-3, save_everystep = false,
-            callback = nothing, kwargs...) where T
+            callback = nothing,
+            Ntraj::Int=1, parallel::Bool=false,
+            prob_func::Function=(prob,i,repeat)->(prob),
+            kwargs...) where T
 
     function df_(dx::DiffArray, x::DiffArray, p, t)
         recast!(x, state)
@@ -57,15 +60,28 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
 
     full_cb = OrdinaryDiffEq.CallbackSet(callback,cb)
 
-    sol = OrdinaryDiffEq.solve(
-                prob,
-                alg;
-                reltol = 1.0e-6,
-                abstol = 1.0e-8,
-                save_everystep = false, save_start = false,
-                save_end = false,
-                callback=full_cb, kwargs...)
-    out.t,out.saveval
+    if Ntraj > 1
+        function output_func(sol,i)
+          return (copy(out.t),copy(out.saveval)),false
+        end
+        eprob = OrdinaryDiffEq.EnsembleProblem(prob, prob_func=prob_func, output_func=output_func)
+
+        ensemble_alg = parallel ? OrdinaryDiffEq.EnsembleThreads() : OrdinaryDiffEq.EnsembleSerial()
+        sim = OrdinaryDiffEq.solve(eprob,alg,ensemble_alg;trajectories=Ntraj,callback=cb)
+        tout = getindex.(sim.u,1)
+        out_vals = getindex.(sim.u,2)
+        return tout, out_vals
+    else
+        sol = OrdinaryDiffEq.solve(
+                        prob,
+                        alg;
+                        reltol = 1.0e-6,
+                        abstol = 1.0e-8,
+                        save_everystep = false, save_start = false,
+                        save_end = false,
+                        callback=full_cb, kwargs...)
+        return out.t,out.saveval
+    end
 end
 
 function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,

@@ -125,6 +125,22 @@ for i=1:length(T)
     @test err < 0.1
 end
 
+# Test ensemble computation
+tout_e, Ψt_e = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; Ntraj=Ntrajectories)
+# tmp = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; Ntraj=Ntrajectories)
+ρ_avg_e = DenseOperator[0 * ρ₀ for i=1:length(T)]
+for i=1:Ntrajectories
+    ψ = Ψt_e[i]
+    for j=1:length(T)
+        ρ_avg_e[j] += dm(ψ[j])/Ntrajectories
+    end
+end
+for i=1:length(T)
+    err = tracedistance(ρt_master[i], ρ_avg_e[i])
+    @test err < 0.1
+end
+# ρ_avg_e = sum(dm(ψ) for ψ=Ψt_e)
+
 
 # Test single jump operator
 J1 = [Ja]

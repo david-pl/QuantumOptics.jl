@@ -24,7 +24,7 @@ Calculate MCWF trajectory where the Hamiltonian is given in hermitian form.
 For more information see: [`mcwf`](@ref)
 """
 function mcwf_h(tspan, psi0::T, H::AbstractOperator{B,B}, J::Vector;
-        seed=rand(UInt), rates::DecayRates=nothing,
+        rates::DecayRates=nothing,
         fout=nothing, Jdagger::Vector=dagger.(J),
         tmp::T=copy(psi0),
         display_beforeevent=false, display_afterevent=false,
@@ -32,7 +32,7 @@ function mcwf_h(tspan, psi0::T, H::AbstractOperator{B,B}, J::Vector;
     check_mcwf(psi0, H, J, Jdagger, rates)
     f(t::Float64, psi::T, dpsi::T) = dmcwf_h(psi, H, J, Jdagger, dpsi, tmp, rates)
     j(rng, t::Float64, psi::T, psi_new::T) = jump(rng, t, psi, J, psi_new, rates)
-    integrate_mcwf(f, j, tspan, psi0, seed, fout;
+    integrate_mcwf(f, j, tspan, psi0, fout;
         display_beforeevent=display_beforeevent,
         display_afterevent=display_afterevent,
         kwargs...)
@@ -50,13 +50,13 @@ H_{nh} = H - \\frac{i}{2} \\sum_k J^†_k J_k
 For more information see: [`mcwf`](@ref)
 """
 function mcwf_nh(tspan, psi0::T, Hnh::AbstractOperator{B,B}, J::Vector;
-        seed=rand(UInt), fout=nothing,
+        fout=nothing,
         display_beforeevent=false, display_afterevent=false,
         kwargs...) where {B<:Basis,T<:Ket{B}}
     check_mcwf(psi0, Hnh, J, J, nothing)
     f(t::Float64, psi::T, dpsi::T) = dmcwf_nh(psi, Hnh, dpsi)
     j(rng, t::Float64, psi::T, psi_new::T) = jump(rng, t, psi, J, psi_new, nothing)
-    integrate_mcwf(f, j, tspan, psi0, seed, fout;
+    integrate_mcwf(f, j, tspan, psi0, fout;
         display_beforeevent=display_beforeevent,
         display_afterevent=display_afterevent,
         kwargs...)
@@ -98,7 +98,7 @@ operators. If they are not given they are calculated automatically.
 * `kwargs...`: Further arguments are passed on to the ode solver.
 """
 function mcwf(tspan, psi0::T, H::AbstractOperator{B,B}, J::Vector;
-        seed=rand(UInt), rates::DecayRates=nothing,
+        rates::DecayRates=nothing,
         fout=nothing, Jdagger::Vector=dagger.(J),
         display_beforeevent=false, display_afterevent=false,
         kwargs...) where {B<:Basis,T<:Ket{B}}
@@ -107,7 +107,7 @@ function mcwf(tspan, psi0::T, H::AbstractOperator{B,B}, J::Vector;
         tmp = copy(psi0)
         dmcwf_h_(t::Float64, psi::T, dpsi::T) = dmcwf_h(psi, H, J, Jdagger, dpsi, tmp, rates)
         j_h(rng, t::Float64, psi::T, psi_new::T) = jump(rng, t, psi, J, psi_new, rates)
-        integrate_mcwf(dmcwf_h_, j_h, tspan, psi0, seed,
+        integrate_mcwf(dmcwf_h_, j_h, tspan, psi0,
             fout;
             display_beforeevent=display_beforeevent,
             display_afterevent=display_afterevent,
@@ -125,7 +125,7 @@ function mcwf(tspan, psi0::T, H::AbstractOperator{B,B}, J::Vector;
         end
         dmcwf_nh_(t::Float64, psi::T, dpsi::T) = dmcwf_nh(psi, Hnh, dpsi)
         j_nh(rng, t::Float64, psi::T, psi_new::T) = jump(rng, t, psi, J, psi_new, rates)
-        integrate_mcwf(dmcwf_nh_, j_nh, tspan, psi0, seed,
+        integrate_mcwf(dmcwf_nh_, j_nh, tspan, psi0,
             fout;
             display_beforeevent=display_beforeevent,
             display_afterevent=display_afterevent,
@@ -160,13 +160,13 @@ and therefore must not be changed.
 * `kwargs...`: Further arguments are passed on to the ode solver.
 """
 function mcwf_dynamic(tspan, psi0::T, f::Function;
-    seed=rand(UInt), rates::DecayRates=nothing,
+    rates::DecayRates=nothing,
     fout=nothing, display_beforeevent=false, display_afterevent=false,
     kwargs...) where {T<:Ket}
     tmp = copy(psi0)
     dmcwf_(t::Float64, psi::T, dpsi::T) = dmcwf_h_dynamic(t, psi, f, rates, dpsi, tmp)
     j_(rng, t::Float64, psi::T, psi_new::T) = jump_dynamic(rng, t, psi, f, psi_new, rates)
-    integrate_mcwf(dmcwf_, j_, tspan, psi0, seed,
+    integrate_mcwf(dmcwf_, j_, tspan, psi0,
         fout;
         display_beforeevent=display_beforeevent,
         display_afterevent=display_afterevent,
@@ -181,12 +181,12 @@ Calculate MCWF trajectory where the dynamic Hamiltonian is given in non-hermitia
 For more information see: [`mcwf_dynamic`](@ref)
 """
 function mcwf_nh_dynamic(tspan, psi0::T, f::Function;
-    seed=rand(UInt), rates::DecayRates=nothing,
+    rates::DecayRates=nothing,
     fout=nothing, display_beforeevent=false, display_afterevent=false,
     kwargs...) where T<:Ket
     dmcwf_(t::Float64, psi::T, dpsi::T) = dmcwf_nh_dynamic(t, psi, f, dpsi)
     j_(rng, t::Float64, psi::T, psi_new::T) = jump_dynamic(rng, t, psi, f, psi_new, rates)
-    integrate_mcwf(dmcwf_, j_, tspan, psi0, seed,
+    integrate_mcwf(dmcwf_, j_, tspan, psi0,
         fout;
         display_beforeevent=display_beforeevent,
         display_afterevent=display_afterevent,
@@ -249,7 +249,7 @@ Integrate a single Monte Carlo wave function trajectory.
 * `kwargs`: Further arguments are passed on to the ode solver.
 """
 function integrate_mcwf(dmcwf::Function, jumpfun::Function, tspan,
-                        psi0::T, seed, fout::Function;
+                        psi0::T, fout::Function; seed=nothing,
                         display_beforeevent=false, display_afterevent=false,
                         #TODO: Remove kwargs
                         save_everystep=false, callback=nothing,
@@ -259,6 +259,8 @@ function integrate_mcwf(dmcwf::Function, jumpfun::Function, tspan,
     tmp = copy(psi0)
     psi_tmp = copy(psi0)
     as_vector(psi::T) = psi.data
+
+    if isa(seed, Nothing)
     rng = MersenneTwister(convert(UInt, seed))
     jumpnorm = Ref(rand(rng))
     djumpnorm(x::D, t::Float64, integrator) = norm(x)^2 - (1-jumpnorm[])
