@@ -272,9 +272,7 @@ end
 
 Abstract type for all implementations of FFT operators.
 """
-abstract type FFTOperator{BL<:Basis, BR<:Basis, DIM} <: AbstractOperator{BL,BR} end
-
-const PlanFFT = FFTW.cFFTWPlan
+abstract type FFTOperator{BL<:Basis, BR<:Basis, T} <: AbstractOperator{BL,BR} end
 
 """
     FFTOperators
@@ -282,23 +280,23 @@ const PlanFFT = FFTW.cFFTWPlan
 Operator performing a fast fourier transformation when multiplied with a state
 that is a Ket or an Operator.
 """
-mutable struct FFTOperators{BL<:Basis, BR<:Basis, DIM} <: FFTOperator{BL, BR, DIM}
+mutable struct FFTOperators{BL<:Basis,BR<:Basis,T<:Array{ComplexF64},P1,P2,P3,P4} <: FFTOperator{BL, BR, T}
     basis_l::BL
     basis_r::BR
-    fft_l!::PlanFFT
-    fft_r!::PlanFFT
-    fft_l2!::PlanFFT
-    fft_r2!::PlanFFT
-    mul_before::Array{ComplexF64, DIM}
-    mul_after::Array{ComplexF64, DIM}
+    fft_l!::P1
+    fft_r!::P2
+    fft_l2!::P3
+    fft_r2!::P4
+    mul_before::T
+    mul_after::T
     function FFTOperators(b1::BL, b2::BR,
-        fft_l!::PlanFFT,
-        fft_r!::PlanFFT,
-        fft_l2!::PlanFFT,
-        fft_r2!::PlanFFT,
-        mul_before::Array{ComplexF64, DIM},
-        mul_after::Array{ComplexF64, DIM}) where {BL<:Basis, BR<:Basis, DIM}
-        new{BL, BR, DIM}(b1, b2, fft_l!, fft_r!, fft_l2!, fft_r2!, mul_before, mul_after)
+        fft_l!::P1,
+        fft_r!::P2,
+        fft_l2!::P3,
+        fft_r2!::P4,
+        mul_before::T,
+        mul_after::T) where {BL<:Basis,BR<:Basis,T,P1,P2,P3,P4}
+        new{BL,BR,T,P1,P2,P3,P4}(b1, b2, fft_l!, fft_r!, fft_l2!, fft_r2!, mul_before, mul_after)
     end
 end
 
@@ -308,28 +306,22 @@ end
 Operator that can only perform fast fourier transformations on Kets.
 This is much more memory efficient when only working with Kets.
 """
-mutable struct FFTKets{BL<:Basis, BR<:Basis, DIM} <: FFTOperator{BL, BR, DIM}
+mutable struct FFTKets{BL<:Basis,BR<:Basis,T<:Array{ComplexF64},P1,P2} <: FFTOperator{BL, BR, T}
     basis_l::BL
     basis_r::BR
-    fft_l!::PlanFFT
-    fft_r!::PlanFFT
-    mul_before::Array{ComplexF64, DIM}
-    mul_after::Array{ComplexF64, DIM}
-    function FFTKets{BL,BR}(b1::BL, b2::BR,
-        fft_l!::PlanFFT,
-        fft_r!::PlanFFT,
-        mul_before::Array{ComplexF64, DIM},
-        mul_after::Array{ComplexF64, DIM}) where {BL<:Basis,BR<:Basis, DIM}
-        new{BL, BR, DIM}(b1, b2, fft_l!, fft_r!, mul_before, mul_after)
+    fft_l!::P1
+    fft_r!::P2
+    mul_before::T
+    mul_after::T
+    function FFTKets(b1::BL, b2::BR,
+        fft_l!::P1,
+        fft_r!::P2,
+        mul_before::T,
+        mul_after::T) where {BL<:Basis,BR<:Basis, T, P1, P2}
+        new{BL, BR, T, P1, P2}(b1, b2, fft_l!, fft_r!, mul_before, mul_after)
     end
 end
-function FFTKets(b1::BL, b2::BR,
-    fft_l!::PlanFFT,
-    fft_r!::PlanFFT,
-    mul_before::Array{ComplexF64},
-    mul_after::Array{ComplexF64}) where {BL<:Basis, BR<:Basis}
-    FFTKets{BL, BR}(b1, b2, fft_l!, fft_r!, mul_before, mul_after)
-end
+
 """
     transform(b1::MomentumBasis, b2::PositionBasis)
     transform(b1::PositionBasis, b2::MomentumBasis)
@@ -563,14 +555,14 @@ function operators.gemm!(alpha_, A::DenseOperator{B1,B2}, B::FFTOperators{B2,B3}
     @inbounds for j=1:length(B.mul_after), i=1:length(B.mul_after)
         data[i, j] *= B.mul_after[j]
     end
-    # rmul!(data, B.mul_after[:])
     conj!(data)
-    B.fft_l2! * reshape(data, [size(B.mul_after)...; size(B.mul_after)...]...)
+    n = size(B.mul_after)
+    B.fft_l2! * reshape(data, n..., n...)
     conj!(data)
-    @inbounds for j=1:length(B.mul_before), i=1:length(B.mul_before)
+    N = prod(n)
+    @inbounds for j=1:N, i=1:N
         data[i, j] *= B.mul_before[j]
     end
-    # rmul!(data, B.mul_before[:])
     if alpha != Complex(1.)
         lmul!(alpha, data)
     end
@@ -593,12 +585,12 @@ function operators.gemm!(alpha_, A::FFTOperators{B1,B2}, B::DenseOperator{B2,B3}
     @inbounds for j=1:length(A.mul_before), i=1:length(A.mul_before)
         data[i, j] *= A.mul_before[i]
     end
-    # rmul!(A.mul_before[:], data)
-    A.fft_r2! * reshape(data, [size(A.mul_before)...; size(A.mul_before)...]...)
-    @inbounds for j=1:length(A.mul_after), i=1:length(A.mul_after)
+    n = size(A.mul_before)
+    A.fft_r2! * reshape(data, n...,n...)
+    N = prod(n)
+    @inbounds for j=1:N, i=1:N
         data[i, j] *= A.mul_after[i]
     end
-    # rmul!(A.mul_after[:], data)
     if alpha != Complex(1.)
         lmul!(alpha, data)
     end
