@@ -126,8 +126,14 @@ for i=1:length(T)
 end
 
 # Test ensemble computation
-tout_e, Ψt_e = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; Ntraj=Ntrajectories)
-# tmp = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; Ntraj=Ntrajectories)
+tout_e, Ψt_e = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; trajectories=Ntrajectories, seed=[UInt(i) for i=1:Ntrajectories])
+tout_e, Ψt2_e = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; trajectories=Ntrajectories, seed=[UInt(i) for i=1:Ntrajectories], parallel=true)
+tout, Ψt = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; seed=[UInt(1)])
+@test Ψt == Ψt_e[1]
+@test length(Ψt_e) == Ntrajectories
+@test !any([Ψt_e[1] == ψ for ψ=Ψt_e[2:end]])
+@test Ψt_e == Ψt2_e
+# tmp = timeevolution.mcwf(T, Ψ₀, Hdense, Jdense; trajectories=Ntrajectories)
 ρ_avg_e = DenseOperator[0 * ρ₀ for i=1:length(T)]
 for i=1:Ntrajectories
     ψ = Ψt_e[i]

@@ -18,8 +18,8 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
             state::T, dstate::T, fout::Function;
             alg::OrdinaryDiffEq.OrdinaryDiffEqAlgorithm = OrdinaryDiffEq.DP5(),
             steady_state = false, tol = 1e-3, save_everystep = false,
-            callback = nothing,
-            Ntraj::Int=1, parallel::Bool=false,
+            callback = nothing, parameters=nothing,
+            trajectories::Int=1, parallel::Bool=false,
             prob_func::Function=(prob,i,repeat)->(prob),
             kwargs...) where T
 
@@ -35,15 +35,10 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
     end
 
     out_type = pure_inference(fout, Tuple{eltype(tspan),typeof(state)})
-
     out = DiffEqCallbacks.SavedValues(Float64,out_type)
-
     scb = DiffEqCallbacks.SavingCallback(fout_,out,saveat=tspan,
                                          save_everystep=save_everystep,
                                          save_start = false)
-
-    prob = OrdinaryDiffEq.ODEProblem{true}(df_, x0,(tspan[1],tspan[end]))
-
     if steady_state
         affect! = function (integrator)
             !save_everystep && scb.affect!(integrator,true)
@@ -57,17 +52,23 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
     else
         cb = scb
     end
-
     full_cb = OrdinaryDiffEq.CallbackSet(callback,cb)
 
-    if Ntraj > 1
+    prob = OrdinaryDiffEq.ODEProblem{true}(df_, x0,(tspan[1],tspan[end]),parameters,callback=full_cb)
+
+    if trajectories > 1
         function output_func(sol,i)
           return (copy(out.t),copy(out.saveval)),false
         end
         eprob = OrdinaryDiffEq.EnsembleProblem(prob, prob_func=prob_func, output_func=output_func)
 
         ensemble_alg = parallel ? OrdinaryDiffEq.EnsembleThreads() : OrdinaryDiffEq.EnsembleSerial()
-        sim = OrdinaryDiffEq.solve(eprob,alg,ensemble_alg;trajectories=Ntraj,callback=cb)
+        sim = OrdinaryDiffEq.solve(eprob,alg,ensemble_alg;trajectories=trajectories,callback=scb,
+                                    reltol = 1.0e-6,
+                                    abstol = 1.0e-8,
+                                    save_everystep=false,save_start=false,
+                                    save_end=false,
+                                    kwargs...)
         tout = getindex.(sim.u,1)
         out_vals = getindex.(sim.u,2)
         return tout, out_vals
@@ -79,7 +80,7 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
                         abstol = 1.0e-8,
                         save_everystep = false, save_start = false,
                         save_end = false,
-                        callback=full_cb, kwargs...)
+                        kwargs...)
         return out.t,out.saveval
     end
 end
