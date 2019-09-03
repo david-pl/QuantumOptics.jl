@@ -63,7 +63,7 @@ function integrate(tspan::Vector{Float64}, df::Function, x0::DiffArray,
         eprob = OrdinaryDiffEq.EnsembleProblem(prob, prob_func=prob_func, output_func=output_func)
 
         ensemble_alg = parallel ? OrdinaryDiffEq.EnsembleThreads() : OrdinaryDiffEq.EnsembleSerial()
-        sim = OrdinaryDiffEq.solve(eprob,alg,ensemble_alg;trajectories=trajectories,callback=scb,
+        sim = OrdinaryDiffEq.solve(eprob,alg,ensemble_alg;trajectories=trajectories,callback=full_cb,
                                     reltol = 1.0e-6,
                                     abstol = 1.0e-8,
                                     save_everystep=false,save_start=false,

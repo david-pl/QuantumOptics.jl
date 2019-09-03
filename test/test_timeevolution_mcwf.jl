@@ -2,6 +2,8 @@ using Test
 using QuantumOptics
 using Random, LinearAlgebra
 
+println("nthreads: ", Threads.nthreads())
+
 @testset "mcwf" begin
 
 # Define parameters for spin coupled to electric field mode.
